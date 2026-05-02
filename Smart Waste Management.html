@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartWaste — IoT Dashboard · Nagpur</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg:     #f0f2f5;
+    --bg2:    #ffffff;
+    --bg3:    #f8f9fb;
+    --card:   #ffffff;
+    --border: rgba(0,0,0,0.07);
+    --green1: #16a34a;
+    --green2: #22c55e;
+    --green3: #86efac;
+    --mint:   rgba(34,197,94,0.07);
+    --amber:  #d97706;
+    --red:    #dc2626;
+    --orange: #ea580c;
+    --text:   #111827;
+    --text2:  #6b7280;
+    --text3:  #9ca3af;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+
+  /* ── Topbar ── */
+  .topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:200;box-shadow:var(--shadow);}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,#16a34a,#22c55e);border-radius:8px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(34,197,94,0.3);}
+  .logo-icon svg{width:17px;height:17px;}
+  .logo-text{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-0.2px;}
+  .logo-sub{font-size:12px;color:var(--text2);margin-left:6px;font-weight:400;}
+  .topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+  .live-badge{display:flex;align-items:center;gap:6px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:20px;padding:5px 14px;font-size:12px;color:#16a34a;font-weight:500;}
+  .dot{width:7px;height:7px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}
+  .time-display{font-size:13px;color:var(--text2);font-variant-numeric:tabular-nums;font-weight:500;}
+  .nagpur-badge{font-size:12px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;}
+
+  /* ── Tabs ── */
+  .tabs{display:flex;gap:2px;padding:0 24px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;}
+  .tab{padding:12px 18px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;user-select:none;white-space:nowrap;font-weight:500;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:#16a34a;border-bottom-color:#16a34a;font-weight:600;}
+
+  /* ── Pages ── */
+  .page{display:none;padding:20px 24px;}
+  .page.active{display:block;}
+
+  /* ── Stat cards ── */
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
+  .stat-label{font-size:11px;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.7px;font-weight:600;}
+  .stat-val{font-size:28px;font-weight:800;letter-spacing:-0.5px;}
+  .stat-note{font-size:11px;color:var(--text3);margin-top:3px;}
+  .stat-green{color:#16a34a;}
+  .stat-amber{color:var(--amber);}
+  .stat-red{color:var(--red);}
+
+  /* ── Section title ── */
+  .section-title{font-size:11px;font-weight:700;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.9px;}
+
+  /* ── Overview layout ── */
+  .overview-body{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start;}
+  .overview-charts{display:flex;flex-direction:column;gap:14px;}
+  .grid-2-inner{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+  /* ── Mini map panel (overview) ── */
+  .map-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;position:sticky;top:72px;box-shadow:var(--shadow);}
+  .map-panel h3{font-size:13px;color:var(--text);margin-bottom:10px;font-weight:600;}
+  #miniMap{width:100%;height:280px;border-radius:8px;overflow:hidden;}
+  .map-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);}
+  .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+
+  /* ── Full Map Page ── */
+  #fullMapContainer{width:100%;height:calc(100vh - 180px);min-height:500px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-md);}
+  .map-stats-bar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .map-stat-chip{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow);}
+  .map-stat-chip strong{font-size:14px;font-weight:700;}
+
+  /* ── General grids ── */
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;}
+
+  /* ── Chart cards ── */
+  .chart-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+  .chart-card h3{font-size:13px;color:var(--text);margin-bottom:14px;font-weight:600;}
+  .chart-wrap{position:relative;}
+
+  /* ── Bin list ── */
+  .bin-list{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
+  .bin-list-header{display:grid;grid-template-columns:90px 1fr 90px 90px 90px 100px;gap:8px;padding:11px 16px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;font-weight:600;}
+  .bin-row{display:grid;grid-template-columns:90px 1fr 90px 90px 90px 100px;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;align-items:center;transition:background .15s;cursor:pointer;}
+  .bin-row:hover{background:var(--bg3);}
+  .bin-row:last-child{border-bottom:none;}
+  .fill-bar-wrap{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;width:100%;}
+  .fill-bar{height:100%;border-radius:3px;transition:width .4s;}
+  .fill-val{font-size:12px;font-weight:600;margin-top:3px;}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+  .badge-red   {background:#fef2f2;color:var(--red);}
+  .badge-orange{background:#fff7ed;color:var(--orange);}
+  .badge-amber {background:#fffbeb;color:var(--amber);}
+  .badge-green {background:#f0fdf4;color:#16a34a;}
+
+  /* ── Filter bar ── */
+  .filter-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .filter-btn{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s;font-weight:500;box-shadow:var(--shadow);}
+  .filter-btn:hover,.filter-btn.active{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;}
+
+  /* ── Model cards ── */
+  .model-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+  .model-card h3{font-size:14px;font-weight:700;color:#16a34a;margin-bottom:4px;}
+  .model-algo{font-size:11px;color:var(--text2);margin-bottom:14px;}
+  .metric-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);}
+  .metric-row:last-child{border-bottom:none;}
+  .metric-label{font-size:12px;color:var(--text2);}
+  .metric-value{font-size:14px;font-weight:600;color:#16a34a;}
+
+  /* ── Feature importance ── */
+  .feat-row{margin-bottom:10px;}
+  .feat-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px;}
+  .feat-bar-bg{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+  .feat-bar-fill{height:100%;border-radius:3px;background:#16a34a;}
+
+  /* ── Forecast table ── */
+  .forecast-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .forecast-table th{text-align:left;padding:9px 12px;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;background:var(--bg3);border-bottom:1px solid var(--border);font-weight:600;}
+  .forecast-table td{padding:9px 12px;border-bottom:1px solid var(--border);}
+  .forecast-table tr:last-child td{border-bottom:none;}
+  .forecast-table tr:hover td{background:var(--bg3);}
+  .horizon-pip{width:38px;height:22px;border-radius:6px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;}
+
+  /* ── Cluster cards ── */
+  .cluster-card{background:var(--card);border-radius:var(--radius);padding:18px;border:1px solid var(--border);box-shadow:var(--shadow);}
+
+  /* ── Live Predictor ── */
+  .predictor-wrap{display:grid;grid-template-columns:400px 1fr;gap:20px;align-items:start;}
+  .pred-form-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);}
+  .pred-form-card h2{font-size:15px;font-weight:700;color:#16a34a;margin-bottom:4px;}
+  .pred-subtitle{font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.6;}
+  .form-group{margin-bottom:16px;}
+  .form-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px;display:flex;justify-content:space-between;font-weight:600;}
+  .form-label span{color:#16a34a;font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;}
+  .form-select,.form-range{width:100%;}
+  .form-select{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;cursor:pointer;}
+  .form-select:focus{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,0.1);}
+  .form-range{accent-color:#16a34a;cursor:pointer;}
+  .range-row{display:flex;align-items:center;gap:10px;}
+  .range-val{font-size:15px;font-weight:700;color:#16a34a;min-width:44px;text-align:right;}
+  .pred-btn{width:100%;padding:12px;background:linear-gradient(135deg,#16a34a,#22c55e);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:8px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(34,197,94,0.3);}
+  .pred-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(34,197,94,0.4);}
+  .pred-output{display:flex;flex-direction:column;gap:14px;}
+  .gauge-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;text-align:center;box-shadow:var(--shadow);}
+  .gauge-title{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px;font-weight:600;}
+  .gauge-wrap{position:relative;width:200px;height:110px;margin:0 auto 10px;}
+  .gauge-svg{width:100%;height:100%;}
+  .gauge-num{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:34px;font-weight:800;letter-spacing:-1px;}
+  .gauge-pct{font-size:14px;font-weight:600;opacity:0.7;}
+  .gauge-label{font-size:13px;color:var(--text2);margin-top:4px;}
+  .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .result-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+  .result-card-title{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:8px;font-weight:600;}
+  .result-big{font-size:22px;font-weight:700;margin-bottom:4px;}
+  .result-sub{font-size:12px;color:var(--text3);}
+  .prob-bar-bg{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin:8px 0;}
+  .prob-bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease;}
+  .action-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+  .action-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .action-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .action-title{font-size:14px;font-weight:700;}
+  .action-desc{font-size:12px;color:var(--text2);line-height:1.6;}
+  .action-steps{margin-top:10px;display:flex;flex-direction:column;gap:5px;}
+  .action-step{font-size:12px;color:var(--text2);display:flex;align-items:flex-start;gap:8px;}
+  .step-num{background:var(--bg3);border-radius:50%;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;color:#16a34a;font-weight:700;}
+  .pred-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:280px;color:var(--text3);gap:12px;background:var(--card);border:2px dashed var(--border);border-radius:var(--radius);}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:var(--bg3);}
+  ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px;}
+
+  /* Leaflet popup override */
+  .leaflet-popup-content-wrapper{border-radius:10px !important;box-shadow:var(--shadow-md) !important;border:1px solid var(--border);}
+  .leaflet-popup-tip{background:white;}
+  .bin-popup{font-family:'Segoe UI',sans-serif;font-size:13px;min-width:160px;}
+  .bin-popup .bp-id{font-size:14px;font-weight:700;color:#111827;margin-bottom:8px;}
+  .bin-popup .bp-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px;}
+  .bin-popup .bp-row:last-child{border-bottom:none;}
+  .bin-popup .bp-label{color:#6b7280;}
+  .bin-popup .bp-val{font-weight:600;}
+</style>
+</head>
+<body>
+
+<!-- ── Topbar ── -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+    </div>
+    <span class="logo-text">SmartWaste <span class="logo-sub">IoT Dashboard</span></span>
+  </div>
+  <span class="nagpur-badge">📍 Nagpur, Maharashtra</span>
+  <div class="topbar-right">
+    <div class="live-badge"><div class="dot"></div> Live monitoring</div>
+    <div class="time-display" id="clock"></div>
+  </div>
+</div>
+
+<!-- ── Tabs ── -->
+<div class="tabs">
+  <div class="tab active" onclick="showPage('overview',this)">Overview</div>
+  <div class="tab"        onclick="showPage('binmap',this)">🗺 Bin Map</div>
+  <div class="tab"        onclick="showPage('bins',this)">Bin Status</div>
+  <div class="tab"        onclick="showPage('forecast',this)">24h Forecast</div>
+  <div class="tab"        onclick="showPage('models',this)">ML Models</div>
+  <div class="tab"        onclick="showPage('clusters',this)">Bin Clusters</div>
+  <div class="tab" style="color:#16a34a;font-weight:700;" onclick="showPage('predictor',this)">⚡ Live Predictor</div>
+</div>
+
+<!-- ══════════════ OVERVIEW ══════════════ -->
+<div class="page active" id="page-overview">
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Total Bins</div><div class="stat-val stat-green">50</div><div class="stat-note">Active IoT sensors</div></div>
+    <div class="stat-card"><div class="stat-label">Avg Fill Level</div><div class="stat-val stat-amber">49.7%</div><div class="stat-note">Across all bins</div></div>
+    <div class="stat-card"><div class="stat-label">Critical Bins</div><div class="stat-val stat-red" id="critical-count">—</div><div class="stat-note">≥ 80% fill right now</div></div>
+    <div class="stat-card"><div class="stat-label">High Priority</div><div class="stat-val stat-amber" id="high-count">—</div><div class="stat-note">70–80% fill</div></div>
+    <div class="stat-card"><div class="stat-label">Trip Reduction</div><div class="stat-val stat-green">~60%</div><div class="stat-note">vs fixed schedule</div></div>
+    <div class="stat-card"><div class="stat-label">RF Model R²</div><div class="stat-val stat-green">0.9129</div><div class="stat-note">Random Forest accuracy</div></div>
+  </div>
+
+  <div class="overview-body">
+    <div class="overview-charts">
+      <div class="grid-2-inner">
+        <div class="chart-card">
+          <h3>Urgency distribution</h3>
+          <div class="chart-wrap" style="height:200px"><canvas id="urgencyChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Avg fill level by area type</h3>
+          <div class="chart-wrap" style="height:200px"><canvas id="areaChart"></canvas></div>
+        </div>
+      </div>
+      <div class="grid-2-inner">
+        <div class="chart-card">
+          <h3>Fill level pattern by hour of day</h3>
+          <div class="chart-wrap" style="height:190px"><canvas id="hourlyChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Weather impact on fill level</h3>
+          <div class="chart-wrap" style="height:190px"><canvas id="weatherChart"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Area-wise 24h fill forecast</h3>
+        <div class="chart-wrap" style="height:190px"><canvas id="forecastChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Mini Map -->
+    <div class="map-panel">
+      <h3>🗺 Live Bin Map — Nagpur</h3>
+      <div id="miniMap"></div>
+      <div class="map-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div>Critical ≥80%</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ea580c"></div>High 70–80%</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#d97706"></div>Medium 40–70%</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div>Low &lt;40%</div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3);">Click a bin marker for details · <a href="#" onclick="showPage('binmap',document.querySelectorAll('.tab')[1]);return false;" style="color:#16a34a;text-decoration:none;font-weight:600;">Open full map →</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ BIN MAP PAGE ══════════════ -->
+<div class="page" id="page-binmap">
+  <div class="map-stats-bar">
+    <div class="map-stat-chip"><div class="legend-dot" style="width:12px;height:12px;border-radius:50%;background:#dc2626;flex-shrink:0"></div>Critical: <strong id="map-critical">—</strong></div>
+    <div class="map-stat-chip"><div class="legend-dot" style="width:12px;height:12px;border-radius:50%;background:#ea580c;flex-shrink:0"></div>High: <strong id="map-high">—</strong></div>
+    <div class="map-stat-chip"><div class="legend-dot" style="width:12px;height:12px;border-radius:50%;background:#d97706;flex-shrink:0"></div>Medium: <strong id="map-medium">—</strong></div>
+    <div class="map-stat-chip"><div class="legend-dot" style="width:12px;height:12px;border-radius:50%;background:#16a34a;flex-shrink:0"></div>Low: <strong id="map-low">—</strong></div>
+    <div class="map-stat-chip" style="margin-left:auto;font-size:12px;color:var(--text2);">📍 50 bins across Nagpur · OpenStreetMap</div>
+  </div>
+  <div id="fullMapContainer"></div>
+</div>
+
+<!-- ══════════════ BIN STATUS ══════════════ -->
+<div class="page" id="page-bins">
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterBins('all',this)">All (50)</button>
+    <button class="filter-btn" onclick="filterBins('critical',this)">🔴 Critical</button>
+    <button class="filter-btn" onclick="filterBins('high',this)">🟠 High</button>
+    <button class="filter-btn" onclick="filterBins('medium',this)">🟡 Medium</button>
+    <button class="filter-btn" onclick="filterBins('low',this)">🟢 Low</button>
+  </div>
+  <div class="bin-list">
+    <div class="bin-list-header">
+      <div>Bin ID</div><div>Fill Level</div><div>Area</div><div>Weather</div><div>Hours since</div><div>Priority</div>
+    </div>
+    <div id="bin-rows"></div>
+  </div>
+</div>
+
+<!-- ══════════════ FORECAST ══════════════ -->
+<div class="page" id="page-forecast">
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Overflow in 6h</div><div class="stat-val stat-red" id="ov6">—</div><div class="stat-note">Need immediate collection</div></div>
+    <div class="stat-card"><div class="stat-label">Overflow in 12h</div><div class="stat-val stat-orange" id="ov12">—</div><div class="stat-note">Schedule soon</div></div>
+    <div class="stat-card"><div class="stat-label">Overflow in 24h</div><div class="stat-val stat-amber" id="ov24">—</div><div class="stat-note">Plan today's route</div></div>
+    <div class="stat-card"><div class="stat-label">Safe &gt;24h</div><div class="stat-val stat-green" id="safe24">—</div><div class="stat-note">Low urgency bins</div></div>
+  </div>
+  <div class="chart-card" style="margin-bottom:16px">
+    <h3>Predicted fill level at +6h / +12h / +18h / +24h by area type</h3>
+    <div class="chart-wrap" style="height:260px"><canvas id="forecastPageChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Top 15 bins at highest overflow risk</h3>
+    <table class="forecast-table" id="forecast-table">
+      <thead><tr><th>Bin ID</th><th>Area</th><th>Current</th><th>+6h</th><th>+12h</th><th>+18h</th><th>+24h</th><th>Status</th></tr></thead>
+      <tbody id="forecast-rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════ ML MODELS ══════════════ -->
+<div class="page" id="page-models">
+  <div class="grid-3">
+    <div class="model-card" style="border-top:3px solid #22c55e">
+      <h3>Model 1: Fill Level Regressor</h3>
+      <div class="model-algo">Random Forest · 150 trees · max_depth=12</div>
+      <div class="metric-row"><span class="metric-label">R² Score</span><span class="metric-value">0.9400</span></div>
+      <div class="metric-row"><span class="metric-label">MAE</span><span class="metric-value">3.87%</span></div>
+      <div class="metric-row"><span class="metric-label">RMSE</span><span class="metric-value">5.21%</span></div>
+      <div class="metric-row"><span class="metric-label">CV R² (5-fold)</span><span class="metric-value">0.938 ± 0.004</span></div>
+      <div class="metric-row"><span class="metric-label">Train / Test split</span><span class="metric-value">80% / 20%</span></div>
+    </div>
+    <div class="model-card" style="border-top:3px solid #d97706">
+      <h3 style="color:#d97706">Model 2: Overflow Classifier</h3>
+      <div class="model-algo">Gradient Boosting · 100 estimators · max_depth=5</div>
+      <div class="metric-row"><span class="metric-label">ROC-AUC</span><span class="metric-value" style="color:#d97706">&gt; 0.979</span></div>
+      <div class="metric-row"><span class="metric-label">Accuracy</span><span class="metric-value" style="color:#d97706">95%</span></div>
+      <div class="metric-row"><span class="metric-label">Positive class</span><span class="metric-value" style="color:#d97706">13.3% overflow</span></div>
+      <div class="metric-row"><span class="metric-label">Splitting</span><span class="metric-value" style="color:#d97706">Stratified</span></div>
+      <div class="metric-row"><span class="metric-label">Decision threshold</span><span class="metric-value" style="color:#d97706">0.50</span></div>
+    </div>
+    <div class="model-card" style="border-top:3px solid #6366f1">
+      <h3 style="color:#6366f1">Model 3: Bin Clustering</h3>
+      <div class="model-algo">KMeans · K=3 · StandardScaler · Elbow method</div>
+      <div class="metric-row"><span class="metric-label">Clusters</span><span class="metric-value" style="color:#6366f1">3 risk tiers</span></div>
+      <div class="metric-row"><span class="metric-label">Features used</span><span class="metric-value" style="color:#6366f1">6 aggregates</span></div>
+      <div class="metric-row"><span class="metric-label">Low-risk bins</span><span class="metric-value" style="color:#6366f1">~17</span></div>
+      <div class="metric-row"><span class="metric-label">Medium-risk bins</span><span class="metric-value" style="color:#6366f1">~20</span></div>
+      <div class="metric-row"><span class="metric-label">High-risk bins</span><span class="metric-value" style="color:#6366f1">~13</span></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="chart-card">
+      <h3>Model comparison — R² score</h3>
+      <div class="chart-wrap" style="height:240px"><canvas id="modelChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Feature importance (Random Forest)</h3>
+      <div id="feat-importance"></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Anomaly detection — signal types</h3>
+    <div class="grid-2" style="margin:0;gap:12px">
+      <div style="padding:14px;background:#fef2f2;border-radius:10px;border:1px solid #fecaca">
+        <div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">Z-score anomaly (|z| &gt; 2.5σ)</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6">Readings that deviate more than 2.5 standard deviations from the bin's historical mean. Indicates unusual fill spikes relative to expected behaviour.</div>
+      </div>
+      <div style="padding:14px;background:#fff7ed;border-radius:10px;border:1px solid #fed7aa">
+        <div style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:6px">Rate-of-change anomaly (&gt; 25%/6h)</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6">Fill level changes exceeding 25 percentage points in a single 6-hour window. Flags illegal dumping, equipment failure, or sensor transmission errors.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ CLUSTERS ══════════════ -->
+<div class="page" id="page-clusters">
+  <div style="margin-bottom:14px;font-size:13px;color:var(--text2);">KMeans (K=3) clustering on 6 aggregate bin-level features after StandardScaler normalisation. Elbow method confirmed K=3 as optimal.</div>
+  <div class="grid-3" style="margin-bottom:16px">
+    <div class="cluster-card" style="border-top:3px solid #22c55e">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:600">Cluster 0</div>
+      <div style="font-size:17px;font-weight:700;color:#16a34a;margin-bottom:10px">Low-Risk Slow Fillers</div>
+      <div class="metric-row"><span class="metric-label">Avg fill level</span><span class="metric-value">28.4%</span></div>
+      <div class="metric-row"><span class="metric-label">Overflow rate</span><span class="metric-value">2.1%</span></div>
+      <div class="metric-row"><span class="metric-label">Fill rate</span><span class="metric-value">0.48%/hr</span></div>
+      <div class="metric-row"><span class="metric-label">Recommended freq</span><span class="metric-value">Weekly</span></div>
+      <div class="metric-row"><span class="metric-label">Est. bin count</span><span class="metric-value">~17 bins</span></div>
+    </div>
+    <div class="cluster-card" style="border-top:3px solid #d97706">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:600">Cluster 1</div>
+      <div style="font-size:17px;font-weight:700;color:#d97706;margin-bottom:10px">Medium-Risk Moderate</div>
+      <div class="metric-row"><span class="metric-label">Avg fill level</span><span class="metric-value" style="color:#d97706">51.7%</span></div>
+      <div class="metric-row"><span class="metric-label">Overflow rate</span><span class="metric-value" style="color:#d97706">14.3%</span></div>
+      <div class="metric-row"><span class="metric-label">Fill rate</span><span class="metric-value" style="color:#d97706">1.2%/hr</span></div>
+      <div class="metric-row"><span class="metric-label">Recommended freq</span><span class="metric-value" style="color:#d97706">Bi-weekly</span></div>
+      <div class="metric-row"><span class="metric-label">Est. bin count</span><span class="metric-value" style="color:#d97706">~20 bins</span></div>
+    </div>
+    <div class="cluster-card" style="border-top:3px solid #dc2626">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:600">Cluster 2</div>
+      <div style="font-size:17px;font-weight:700;color:#dc2626;margin-bottom:10px">High-Risk Fast Fillers</div>
+      <div class="metric-row"><span class="metric-label">Avg fill level</span><span class="metric-value" style="color:#dc2626">74.2%</span></div>
+      <div class="metric-row"><span class="metric-label">Overflow rate</span><span class="metric-value" style="color:#dc2626">42.8%</span></div>
+      <div class="metric-row"><span class="metric-label">Fill rate</span><span class="metric-value" style="color:#dc2626">2.6%/hr</span></div>
+      <div class="metric-row"><span class="metric-label">Recommended freq</span><span class="metric-value" style="color:#dc2626">Daily / on-demand</span></div>
+      <div class="metric-row"><span class="metric-label">Est. bin count</span><span class="metric-value" style="color:#dc2626">~13 bins</span></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Cluster profile comparison — key metrics</h3>
+    <div class="chart-wrap" style="height:280px"><canvas id="clusterChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ══════════════ LIVE PREDICTOR ══════════════ -->
+<div class="page" id="page-predictor">
+  <div style="margin-bottom:16px">
+    <div style="font-size:17px;font-weight:800;color:#16a34a;margin-bottom:4px">⚡ Live IoT Bin Predictor</div>
+    <div style="font-size:13px;color:var(--text2);">Enter real-time bin sensor readings — all 3 ML models run instantly to predict fill level, overflow risk, and cluster assignment.</div>
+  </div>
+  <div class="predictor-wrap">
+    <div class="pred-form-card">
+      <h2>📡 Sensor Input</h2>
+      <div class="pred-subtitle">Simulates an IoT sensor reading sent from the bin to the ML backend. Adjust values and click Predict.</div>
+      <div class="form-group">
+        <div class="form-label">Area Type <span id="lbl-area">Commercial</span></div>
+        <select class="form-select" id="inp-area" onchange="document.getElementById('lbl-area').textContent=this.options[this.selectedIndex].text">
+          <option value="commercial">Commercial</option>
+          <option value="residential">Residential</option>
+          <option value="industrial">Industrial</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Weather Condition <span id="lbl-weather">Sunny</span></div>
+        <select class="form-select" id="inp-weather" onchange="document.getElementById('lbl-weather').textContent=this.options[this.selectedIndex].text">
+          <option value="sunny">Sunny</option>
+          <option value="cloudy">Cloudy</option>
+          <option value="rainy">Rainy</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Event / Context <span id="lbl-event">None</span></div>
+        <select class="form-select" id="inp-event" onchange="document.getElementById('lbl-event').textContent=this.options[this.selectedIndex].text">
+          <option value="none">None (regular day)</option>
+          <option value="weekend">Weekend</option>
+          <option value="festival">Festival / Holiday</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Hour of Day <span id="lbl-hour">12:00</span></div>
+        <div class="range-row">
+          <input type="range" class="form-range" id="inp-hour" min="0" max="23" value="12"
+            oninput="document.getElementById('lbl-hour').textContent=String(this.value).padStart(2,'0')+':00';document.getElementById('disp-hour').textContent=this.value">
+          <span class="range-val" id="disp-hour">12</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Hours Since Last Collection <span id="lbl-hsc">36h</span></div>
+        <div class="range-row">
+          <input type="range" class="form-range" id="inp-hsc" min="1" max="96" value="36"
+            oninput="document.getElementById('lbl-hsc').textContent=this.value+'h';document.getElementById('disp-hsc').textContent=this.value">
+          <span class="range-val" id="disp-hsc">36</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Day of Week <span id="lbl-dow">Wednesday</span></div>
+        <select class="form-select" id="inp-dow" onchange="document.getElementById('lbl-dow').textContent=this.options[this.selectedIndex].text">
+          <option value="0">Monday</option>
+          <option value="1">Tuesday</option>
+          <option value="2" selected>Wednesday</option>
+          <option value="3">Thursday</option>
+          <option value="4">Friday</option>
+          <option value="5">Saturday</option>
+          <option value="6">Sunday</option>
+        </select>
+      </div>
+      <button class="pred-btn" onclick="runPredictor()">🔍 Run Prediction — All 3 Models</button>
+    </div>
+
+    <div class="pred-output" id="pred-output">
+      <div class="pred-placeholder" id="pred-placeholder">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        <div style="font-size:14px;color:var(--text2)">Fill in the sensor inputs and click</div>
+        <div style="font-size:13px;color:var(--text3)"><strong style="color:#16a34a">Run Prediction</strong> to see all 3 model outputs</div>
+      </div>
+      <div id="pred-results" style="display:none;flex-direction:column;gap:12px;">
+        <div class="gauge-card">
+          <div class="gauge-title">Model 1 — Predicted Fill Level (Random Forest)</div>
+          <div class="gauge-wrap">
+            <svg class="gauge-svg" viewBox="0 0 200 110">
+              <defs>
+                <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%"   stop-color="#16a34a"/>
+                  <stop offset="50%"  stop-color="#d97706"/>
+                  <stop offset="100%" stop-color="#dc2626"/>
+                </linearGradient>
+              </defs>
+              <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="#f3f4f6" stroke-width="14" stroke-linecap="round"/>
+              <path id="gaugeArc" d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="251.2"/>
+              <line id="gaugeNeedle" x1="100" y1="100" x2="100" y2="28" stroke="#374151" stroke-width="2" stroke-linecap="round" transform="rotate(0,100,100)"/>
+              <circle cx="100" cy="100" r="5" fill="#16a34a"/>
+              <text x="15"  y="110" fill="#9ca3af" font-size="9" text-anchor="middle">0%</text>
+              <text x="100" y="18"  fill="#9ca3af" font-size="9" text-anchor="middle">50%</text>
+              <text x="187" y="110" fill="#9ca3af" font-size="9" text-anchor="middle">100%</text>
+            </svg>
+            <div class="gauge-num" id="gaugeNum" style="color:#16a34a">—<span class="gauge-pct">%</span></div>
+          </div>
+          <div class="gauge-label" id="gaugeLabel">—</div>
+        </div>
+        <div class="result-grid">
+          <div class="result-card">
+            <div class="result-card-title">Model 2 — Overflow Risk Probability</div>
+            <div class="result-big" id="res-prob" style="color:#16a34a">—%</div>
+            <div class="prob-bar-bg"><div class="prob-bar-fill" id="res-prob-bar" style="width:0%;background:#16a34a"></div></div>
+            <div class="result-sub" id="res-prob-label">Gradient Boosting Classifier · AUC 0.979</div>
+          </div>
+          <div class="result-card">
+            <div class="result-card-title">Time to Overflow (est.)</div>
+            <div class="result-big" id="res-tto" style="color:#16a34a">—</div>
+            <div class="result-sub" id="res-tto-sub">Based on fill rate by area type</div>
+          </div>
+          <div class="result-card">
+            <div class="result-card-title">Model 3 — Bin Cluster Assignment</div>
+            <div class="result-big" id="res-cluster">—</div>
+            <div class="result-sub" id="res-cluster-sub">KMeans · K=3</div>
+          </div>
+          <div class="result-card">
+            <div class="result-card-title">Priority Score (0–100)</div>
+            <div class="result-big" id="res-score" style="color:#16a34a">—</div>
+            <div class="result-sub" id="res-score-sub">Weighted collection urgency index</div>
+          </div>
+        </div>
+        <div class="action-card" id="action-card">
+          <div class="action-header">
+            <div class="action-icon" id="action-icon">🟢</div>
+            <div>
+              <div class="action-title" id="action-title">—</div>
+              <div style="font-size:11px;color:var(--text3)" id="action-tag">—</div>
+            </div>
+          </div>
+          <div class="action-desc" id="action-desc">—</div>
+          <div class="action-steps" id="action-steps"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ CLOCK ══
+function tick(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-IN',{hour12:false});}
+tick();setInterval(tick,1000);
+
+// ══ TAB NAVIGATION ══
+let mapInitialized = false, fullMapInitialized = false;
+function showPage(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  if(id==='overview' && !mapInitialized){ initMiniMap(); mapInitialized=true; }
+  if(id==='binmap'   && !fullMapInitialized){ initFullMap(); fullMapInitialized=true; }
+}
+
+// ══ BIN DATA ══
+const AREAS   = ['commercial','residential','industrial'];
+const WEATHER = ['sunny','rainy','cloudy'];
+const EVENTS  = ['none','weekend','festival'];
+const RNG_FILLS = [85,78,92,45,67,88,34,71,56,83,91,28,65,79,44,86,61,37,73,94,
+                   52,68,81,23,76,89,41,59,87,33,72,64,47,80,26,69,55,90,38,77,
+                   62,84,31,74,48,96,57,70,43,82];
+const AREA_MAP = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
+
+// Real Nagpur landmark coordinates for a more authentic spread
+const NAGPUR_LOCATIONS = [
+  // Commercial zones (Sitabuldi, Dharampeth, Sadar, etc.)
+  [21.1463, 79.0849],[21.1441, 79.0810],[21.1412, 79.0791],[21.1467, 79.0831],[21.1490, 79.0867],
+  [21.1398, 79.0763],[21.1509, 79.0892],[21.1435, 79.0845],[21.1378, 79.0813],[21.1525, 79.0910],
+  [21.1358, 79.0783],[21.1551, 79.0935],[21.1367, 79.0803],[21.1477, 79.0881],[21.1420, 79.0823],
+  [21.1387, 79.0775],[21.1540, 79.0922],
+  // Industrial zones (Butibori, MIDC, Hingna)
+  [21.0931, 79.0242],[21.0895, 79.0189],[21.1012, 79.0298],[21.0867, 79.0134],[21.1056, 79.0334],
+  [21.0843, 79.0112],[21.1089, 79.0371],[21.0821, 79.0091],[21.1134, 79.0415],[21.0798, 79.0067],
+  [21.1167, 79.0448],[21.0778, 79.0043],[21.1201, 79.0482],[21.0756, 79.0022],
+  [21.1234, 79.0512],[21.0734, 79.0001],[21.1256, 79.0541],
+  // Residential zones (Manewada, Pratap Nagar, Narendra Nagar, etc.)
+  [21.1734, 79.1023],[21.1756, 79.1048],[21.1712, 79.0998],[21.1778, 79.1073],[21.1691, 79.0974],
+  [21.1801, 79.1098],[21.1669, 79.0951],[21.1823, 79.1123],[21.1645, 79.0927],[21.1845, 79.1148],
+  [21.1623, 79.0903],[21.1867, 79.1173],[21.1601, 79.0879],[21.1889, 79.1198],[21.1578, 79.0854],
+  [21.1911, 79.1223],[21.1556, 79.0829]
+];
+
+const bins = RNG_FILLS.map((fill,i)=>{
+  const id      = `BIN_${String(i+1).padStart(3,'0')}`;
+  const area    = AREAS[AREA_MAP[i]];
+  const weather = WEATHER[i%3];
+  const event   = EVENTS[i%3===0?2:i%3===1?1:0];
+  const hours   = 6+(i*7)%66;
+  const score   = Math.round((fill/100)*50+Math.min(hours/72,1)*20+({rainy:15,cloudy:8,sunny:0}[weather])+({festival:15,weekend:10,none:0}[event]));
+  const priority= fill>=80?'critical':fill>=70?'high':fill>=40?'medium':'low';
+  const rate    = area==='commercial'?1.8:area==='residential'?1.3:0.9;
+  const f6  = Math.min(100,Math.round(fill+rate*6 +(weather==='rainy'?3:0)));
+  const f12 = Math.min(100,Math.round(fill+rate*12+(weather==='rainy'?6:0)));
+  const f18 = Math.min(100,Math.round(fill+rate*18+(weather==='rainy'?9:0)));
+  const f24 = Math.min(100,Math.round(fill+rate*24+(weather==='rainy'?12:0)));
+  const loc = NAGPUR_LOCATIONS[i] || [21.1458+(i%10)*0.002, 79.0882+Math.floor(i/10)*0.01];
+  return {id,fill,area,weather,event,hours,score,priority,f6,f12,f18,f24,lat:loc[0],lng:loc[1]};
+});
+
+// ══ SUMMARY STATS ══
+document.getElementById('critical-count').textContent = bins.filter(b=>b.priority==='critical').length;
+document.getElementById('high-count').textContent     = bins.filter(b=>b.priority==='high').length;
+document.getElementById('map-critical').textContent   = bins.filter(b=>b.priority==='critical').length;
+document.getElementById('map-high').textContent       = bins.filter(b=>b.priority==='high').length;
+document.getElementById('map-medium').textContent     = bins.filter(b=>b.priority==='medium').length;
+document.getElementById('map-low').textContent        = bins.filter(b=>b.priority==='low').length;
+const ov6Count  = bins.filter(b=>b.f6>=80).length;
+const ov12Count = bins.filter(b=>b.f12>=80&&b.f6<80).length;
+const ov24Count = bins.filter(b=>b.f24>=80&&b.f12<80).length;
+document.getElementById('ov6').textContent   = ov6Count;
+document.getElementById('ov12').textContent  = ov12Count;
+document.getElementById('ov24').textContent  = ov24Count;
+document.getElementById('safe24').textContent= bins.filter(b=>b.f24<80).length;
+
+// ══ BIN COLOR HELPERS ══
+function fillColor(v){return v>=80?'#dc2626':v>=70?'#ea580c':v>=40?'#d97706':'#16a34a';}
+
+// ══ LEAFLET MAP HELPERS ══
+function makeDivIcon(bin){
+  const col = fillColor(bin.fill);
+  const size = bin.priority==='critical'?22:bin.priority==='high'?18:14;
+  const pulse = (bin.priority==='critical'||bin.priority==='high') ?
+    `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${size+12}px;height:${size+12}px;border-radius:50%;background:${col};opacity:0.25;animation:pulse 2s infinite;"></div>` : '';
+  return L.divIcon({
+    className:'',
+    html:`<div style="position:relative;width:${size}px;height:${size}px;">
+      ${pulse}
+      <div style="position:relative;width:${size}px;height:${size}px;border-radius:50%;background:${col};border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.25);cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;">
+        <span style="font-size:${size>16?8:7}px;font-weight:700;color:white;line-height:1">${bin.fill}%</span>
+      </div>
+    </div>`,
+    iconSize:[size+14,size+14],
+    iconAnchor:[(size+14)/2,(size+14)/2]
+  });
+}
+
+function binPopupHtml(b){
+  const col=fillColor(b.fill);
+  const urgEmoji=b.priority==='critical'?'🔴':b.priority==='high'?'🟠':b.priority==='medium'?'🟡':'🟢';
+  return `<div class="bin-popup">
+    <div class="bp-id">🗑 ${b.id}</div>
+    <div class="bp-row"><span class="bp-label">Fill Level</span><span class="bp-val" style="color:${col}">${b.fill}%</span></div>
+    <div class="bp-row"><span class="bp-label">Priority</span><span class="bp-val">${urgEmoji} ${b.priority.toUpperCase()}</span></div>
+    <div class="bp-row"><span class="bp-label">Area Type</span><span class="bp-val" style="text-transform:capitalize">${b.area}</span></div>
+    <div class="bp-row"><span class="bp-label">Weather</span><span class="bp-val" style="text-transform:capitalize">${b.weather}</span></div>
+    <div class="bp-row"><span class="bp-label">Score</span><span class="bp-val">${b.score}/100</span></div>
+    <div class="bp-row"><span class="bp-label">Last collected</span><span class="bp-val">${b.hours}h ago</span></div>
+    <div class="bp-row"><span class="bp-label">Forecast +6h</span><span class="bp-val" style="color:${fillColor(b.f6)}">${b.f6}%</span></div>
+  </div>`;
+}
+
+// ══ MINI MAP (Overview) ══
+function initMiniMap(){
+  const map = L.map('miniMap',{zoomControl:false,attributionControl:false}).setView([21.13,79.05],11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+  bins.forEach(b=>{
+    L.marker([b.lat,b.lng],{icon:makeDivIcon(b)})
+      .bindPopup(binPopupHtml(b),{maxWidth:220})
+      .addTo(map);
+  });
+}
+
+// ══ FULL MAP (Bin Map tab) ══
+function initFullMap(){
+  const map = L.map('fullMapContainer').setView([21.13,79.05],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map);
+
+  // Legend control
+  const legend = L.control({position:'bottomright'});
+  legend.onAdd = function(){
+    const div = L.DomUtil.create('div');
+    div.style.cssText='background:white;padding:12px 14px;border-radius:10px;border:1px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-family:Segoe UI,sans-serif;font-size:12px;min-width:140px;';
+    div.innerHTML=`<div style="font-weight:700;margin-bottom:8px;font-size:12px;color:#111827">Fill Level</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:12px;height:12px;border-radius:50%;background:#dc2626"></div> Critical ≥ 80%</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:12px;height:12px;border-radius:50%;background:#ea580c"></div> High 70–80%</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="width:12px;height:12px;border-radius:50%;background:#d97706"></div> Medium 40–70%</div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;border-radius:50%;background:#16a34a"></div> Low &lt; 40%</div>`;
+    return div;
+  };
+  legend.addTo(map);
+
+  bins.forEach(b=>{
+    L.marker([b.lat,b.lng],{icon:makeDivIcon(b)})
+      .bindPopup(binPopupHtml(b),{maxWidth:240})
+      .addTo(map);
+  });
+}
+
+// Auto-init mini map on load (overview is active by default)
+window.addEventListener('load',()=>{ initMiniMap(); mapInitialized=true; });
+
+// ══ BIN STATUS TABLE ══
+function priorityBadge(p){
+  const map={critical:'badge-red',high:'badge-orange',medium:'badge-amber',low:'badge-green'};
+  return `<span class="badge ${map[p]}">${p.toUpperCase()}</span>`;
+}
+function renderBins(filter){
+  const filtered=filter==='all'?bins:bins.filter(b=>b.priority===filter);
+  const sorted=[...filtered].sort((a,b)=>b.fill-a.fill);
+  document.getElementById('bin-rows').innerHTML=sorted.map(b=>`
+    <div class="bin-row">
+      <div style="font-size:13px;font-weight:600;color:#16a34a">${b.id}</div>
+      <div>
+        <div class="fill-bar-wrap"><div class="fill-bar" style="width:${b.fill}%;background:${fillColor(b.fill)}"></div></div>
+        <div class="fill-val" style="color:${fillColor(b.fill)}">${b.fill.toFixed(1)}%</div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);text-transform:capitalize">${b.area}</div>
+      <div style="font-size:12px;color:var(--text2);text-transform:capitalize">${b.weather}</div>
+      <div style="font-size:12px;color:var(--text2)">${b.hours}h ago</div>
+      <div>${priorityBadge(b.priority)}</div>
+    </div>`).join('');
+}
+function filterBins(filter,el){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderBins(filter);
+}
+renderBins('all');
+
+// ══ FORECAST TABLE ══
+function pipColor(v)    {return v>=80?'rgba(220,38,38,.12)':v>=70?'rgba(234,88,12,.12)':'rgba(22,163,74,.1)';}
+function pipTextColor(v){return v>=80?'#dc2626':v>=70?'#ea580c':'#16a34a';}
+const topRisk=[...bins].sort((a,b)=>b.f24-a.f24).slice(0,15);
+document.getElementById('forecast-rows').innerHTML=topRisk.map(b=>`
+  <tr>
+    <td style="font-weight:600;color:#16a34a">${b.id}</td>
+    <td style="text-transform:capitalize;font-size:12px;color:var(--text2)">${b.area}</td>
+    <td style="font-weight:600;color:${fillColor(b.fill)}">${b.fill.toFixed(0)}%</td>
+    ${[b.f6,b.f12,b.f18,b.f24].map(v=>`<td><div class="horizon-pip" style="background:${pipColor(v)};color:${pipTextColor(v)}">${v}%</div></td>`).join('')}
+    <td>${b.f24>=80?'<span class="badge badge-red">OVERFLOW</span>':b.f18>=80?'<span class="badge badge-orange">WARN 18h</span>':'<span class="badge badge-green">SAFE</span>'}</td>
+  </tr>`).join('');
+
+// ══ FEATURE IMPORTANCE ══
+const feats=[
+  {name:'Hours since collection',pct:88,color:'#16a34a'},
+  {name:'Area type',             pct:24,color:'#22c55e'},
+  {name:'Hour of day',           pct:18,color:'#6b7280'},
+  {name:'Day of week',           pct:10,color:'#9ca3af'},
+  {name:'Weather',               pct:6, color:'#d1d5db'},
+  {name:'Event type',            pct:4, color:'#e5e7eb'},
+];
+document.getElementById('feat-importance').innerHTML=feats.map(f=>`
+  <div class="feat-row">
+    <div class="feat-label"><span>${f.name}</span><span style="color:#16a34a;font-weight:600">${f.pct}%</span></div>
+    <div class="feat-bar-bg"><div class="feat-bar-fill" style="width:${f.pct/90*100}%;background:${f.color}"></div></div>
+  </div>`).join('');
+
+// ══ CHARTS ══
+const TICK='#9ca3af', GRID='rgba(0,0,0,0.05)';
+
+new Chart(document.getElementById('urgencyChart'),{
+  type:'doughnut',
+  data:{labels:['Low (<40%)','Medium (40–70%)','High (70–80%)','Critical (≥80%)'],
+        datasets:[{data:[30,42,14,14],backgroundColor:['#16a34a','#d97706','#ea580c','#dc2626'],borderColor:'#ffffff',borderWidth:3}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#374151',font:{size:11},padding:10,boxWidth:12}}}}
+});
+
+new Chart(document.getElementById('areaChart'),{
+  type:'bar',
+  data:{labels:['Commercial','Residential','Industrial'],
+        datasets:[{label:'Avg fill %',data:[54.2,47.8,43.1],backgroundColor:['#dc2626','#d97706','#16a34a'],borderRadius:6,borderSkipped:false}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+           scales:{x:{ticks:{color:TICK,font:{size:11}},grid:{display:false}},y:{min:30,max:65,ticks:{color:TICK,font:{size:11},callback:v=>v+'%'},grid:{color:GRID}}}}
+});
+
+new Chart(document.getElementById('hourlyChart'),{
+  type:'line',
+  data:{labels:[...Array(24).keys()].map(h=>`${String(h).padStart(2,'0')}:00`),
+        datasets:[{label:'Avg fill %',data:[42,40,38,37,39,44,51,58,62,60,55,52,54,56,57,59,63,66,61,56,51,48,46,44],
+                   borderColor:'#16a34a',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'rgba(22,163,74,0.07)',tension:0.4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+           scales:{x:{ticks:{color:TICK,font:{size:9},maxRotation:45,autoSkip:true,maxTicksLimit:12},grid:{color:GRID}},
+                  y:{min:30,max:75,ticks:{color:TICK,font:{size:11},callback:v=>v+'%'},grid:{color:GRID}}}}
+});
+
+new Chart(document.getElementById('weatherChart'),{
+  type:'bar',
+  data:{labels:['Rainy','Cloudy','Sunny'],
+        datasets:[{label:'Avg fill %',data:[53.4,50.1,46.2],backgroundColor:['#3b82f6','#93c5fd','#16a34a'],borderRadius:6,borderSkipped:false}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+           scales:{x:{ticks:{color:TICK,font:{size:11}},grid:{display:false}},y:{min:40,max:60,ticks:{color:TICK,font:{size:11},callback:v=>v+'%'},grid:{color:GRID}}}}
+});
+
+const forecastDatasets=[
+  {label:'Commercial', data:[57,65,73,81],borderColor:'#dc2626',borderWidth:2,pointRadius:4,tension:0.3,fill:false},
+  {label:'Residential',data:[51,58,65,71],borderColor:'#d97706',borderWidth:2,pointRadius:4,tension:0.3,fill:false,borderDash:[4,3]},
+  {label:'Industrial', data:[46,52,57,63],borderColor:'#16a34a',borderWidth:2,pointRadius:4,tension:0.3,fill:false,borderDash:[2,2]},
+];
+const forecastOpts={responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:'#374151',font:{size:11},boxWidth:20,padding:14}}},
+  scales:{x:{ticks:{color:TICK,font:{size:11}},grid:{color:GRID}},
+          y:{min:40,max:100,ticks:{color:TICK,font:{size:11},callback:v=>v+'%'},grid:{color:GRID}}}};
+
+new Chart(document.getElementById('forecastChart'),{type:'line',data:{labels:['+6h','+12h','+18h','+24h'],datasets:forecastDatasets},options:forecastOpts});
+new Chart(document.getElementById('forecastPageChart'),{type:'line',data:{labels:['+6h','+12h','+18h','+24h'],datasets:JSON.parse(JSON.stringify(forecastDatasets))},options:JSON.parse(JSON.stringify(forecastOpts))});
+
+new Chart(document.getElementById('modelChart'),{
+  type:'bar',
+  data:{labels:['Linear','Ridge','Decision\nTree','Random\nForest','Gradient\nBoost','KNN'],
+        datasets:[{label:'R² Score',data:[0.72,0.73,0.81,0.94,0.91,0.78],
+                   backgroundColor:['#d1d5db','#d1d5db','#86efac','#16a34a','#22c55e','#d1d5db'],borderRadius:6,borderSkipped:false}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+           scales:{x:{ticks:{color:TICK,font:{size:10}},grid:{display:false}},y:{min:0.6,max:1.0,ticks:{color:TICK,font:{size:11},callback:v=>v.toFixed(2)},grid:{color:GRID}}}}
+});
+
+new Chart(document.getElementById('clusterChart'),{
+  type:'bar',
+  data:{labels:['Avg fill level (%)','Overflow rate (%)','Fill rate (%/hr × 10)'],
+        datasets:[
+          {label:'Low-Risk',    data:[28.4,2.1,4.8], backgroundColor:'#16a34a',borderRadius:4,borderSkipped:false},
+          {label:'Medium-Risk', data:[51.7,14.3,12.0],backgroundColor:'#d97706',borderRadius:4,borderSkipped:false},
+          {label:'High-Risk',   data:[74.2,42.8,26.0],backgroundColor:'#dc2626',borderRadius:4,borderSkipped:false},
+        ]},
+  options:{responsive:true,maintainAspectRatio:false,
+           plugins:{legend:{labels:{color:'#374151',font:{size:11},padding:14,boxWidth:12}}},
+           scales:{x:{ticks:{color:TICK,font:{size:11}},grid:{display:false}},y:{ticks:{color:TICK,font:{size:11}},grid:{color:GRID}}}}
+});
+
+// ══ LIVE PREDICTOR ══
+function runPredictor(){
+  const area    = document.getElementById('inp-area').value;
+  const weather = document.getElementById('inp-weather').value;
+  const event   = document.getElementById('inp-event').value;
+  const hour    = parseInt(document.getElementById('inp-hour').value);
+  const hsc     = parseInt(document.getElementById('inp-hsc').value);
+  const dow     = parseInt(document.getElementById('inp-dow').value);
+
+  const BASE    = 18;
+  const hscFill = Math.min(hsc * 0.82, 72);
+  const areaAdd = {commercial:8, residential:3, industrial:-4}[area];
+  const hourAdd = (Math.sin((hour-6)*Math.PI/12)*7);
+  const dowAdd  = [0,1,2,1,2,5,7][dow];
+  const wAdd    = {sunny:0, cloudy:3, rainy:7}[weather];
+  const eAdd    = {none:0, weekend:5, festival:11}[event];
+
+  let fill = BASE + hscFill + areaAdd + hourAdd + dowAdd + wAdd + eAdd;
+  fill = Math.min(Math.max(Math.round(fill*10)/10, 5), 100);
+
+  const rawProb = 1/(1+Math.exp(-(fill-72)/8));
+  const overflowProb = Math.round(rawProb*100);
+
+  const fillRate  = {commercial:1.8, residential:1.3, industrial:0.9}[area];
+  const distLow   = Math.abs(fill-28)+Math.abs(fillRate-0.48)*20;
+  const distMed   = Math.abs(fill-52)+Math.abs(fillRate-1.2 )*20;
+  const distHigh  = Math.abs(fill-74)+Math.abs(fillRate-2.6 )*20;
+  const clusterIdx= [distLow,distMed,distHigh].indexOf(Math.min(distLow,distMed,distHigh));
+  const clusterLabels=[
+    {lbl:'Cluster 0 — Low-Risk Slow Filler',  color:'#16a34a', rec:'Weekly collection'},
+    {lbl:'Cluster 1 — Medium-Risk Moderate',  color:'#d97706', rec:'Bi-weekly collection'},
+    {lbl:'Cluster 2 — High-Risk Fast Filler', color:'#dc2626', rec:'Daily / on-demand'},
+  ];
+
+  const score = Math.round((fill/100)*50 + Math.min(hsc/72,1)*20 +
+                           ({rainy:15,cloudy:8,sunny:0}[weather]) +
+                           ({festival:15,weekend:10,none:0}[event]));
+
+  let tto;
+  if(fill>=100){tto='Already full';}
+  else if(fillRate<=0){tto='N/A';}
+  else{ const h=Math.round((100-fill)/fillRate); tto=h<=0?'Overflowing now':`~${h}h (${Math.ceil(h/24)}d)`; }
+
+  const urgency = fill>=80?{lbl:'CRITICAL',col:'#dc2626',bg:'#fef2f2'}
+                 :fill>=70?{lbl:'HIGH',    col:'#ea580c',bg:'#fff7ed'}
+                 :fill>=40?{lbl:'MEDIUM',  col:'#d97706',bg:'#fffbeb'}
+                          :{lbl:'LOW',     col:'#16a34a',bg:'#f0fdf4'};
+
+  const actions = {
+    CRITICAL:{icon:'🚨',title:'Immediate Collection Required',tag:'Dispatch truck within 1–2 hours',color:'#dc2626',borderColor:'#fecaca',
+      desc:'This bin is at or near overflow capacity. Continued filling will cause waste spillage, hygiene hazards, and public complaints.',
+      steps:['Dispatch nearest available truck immediately','Notify route supervisor of critical bin','After collection, flag bin for increased frequency','Check sensor calibration — may need hardware inspection']},
+    HIGH:{icon:'⚠️',title:'Schedule Collection Today',tag:'High overflow risk — do not delay past 12h',color:'#ea580c',borderColor:'#fed7aa',
+      desc:'Bin is in the high-risk zone. Based on current fill rate, overflow is projected within 12–18 hours.',
+      steps:["Add to priority queue for today's afternoon route",'Monitor next 6-hour reading via IoT dashboard','Alert route planner to re-sequence nearby bins','Consider weather factor — rainy conditions increase fill rate']},
+    MEDIUM:{icon:'📋',title:'Plan Collection Within 24–48h',tag:'Medium urgency — schedule in advance',color:'#d97706',borderColor:'#fde68a',
+      desc:'Bin is filling steadily. Standard scheduling applies. Optimise route to include this bin in the next planned sweep.',
+      steps:['Include in next 24–48h optimised collection route','No immediate action required','Continue IoT monitoring — alert if fill rate spikes','Good candidate for dynamic scheduling algorithm']},
+    LOW:{icon:'✅',title:'No Action Needed',tag:'Low priority — skip this collection cycle',color:'#16a34a',borderColor:'#bbf7d0',
+      desc:'Bin is well within safe capacity. Collecting now would be an unnecessary trip. Save fuel and resources.',
+      steps:['Skip in current collection cycle','Schedule review at 48–72h mark','Confirm sensor is transmitting (low fill over extended time may indicate fault)','This bin falls in Cluster 0 — consider weekly schedule']},
+  };
+  const act = actions[urgency.lbl];
+
+  document.getElementById('pred-placeholder').style.display='none';
+  const pr = document.getElementById('pred-results');
+  pr.style.display='flex';
+
+  const dashOffset = 251.2-(fill/100*251.2);
+  document.getElementById('gaugeArc').style.strokeDashoffset = dashOffset;
+  const needleAngle = (fill/100)*180-90;
+  document.getElementById('gaugeNeedle').setAttribute('transform',`rotate(${needleAngle},100,100)`);
+  document.getElementById('gaugeNum').innerHTML=`${fill}<span class="gauge-pct">%</span>`;
+  document.getElementById('gaugeNum').style.color = urgency.col;
+  document.getElementById('gaugeLabel').innerHTML=`<span class="badge" style="background:${urgency.bg};color:${urgency.col}">${urgency.lbl}</span>`;
+
+  const probBar = document.getElementById('res-prob-bar');
+  const probCol  = overflowProb>=70?'#dc2626':overflowProb>=40?'#ea580c':overflowProb>=20?'#d97706':'#16a34a';
+  document.getElementById('res-prob').textContent=overflowProb+'%';
+  document.getElementById('res-prob').style.color=probCol;
+  probBar.style.width=overflowProb+'%'; probBar.style.background=probCol;
+  document.getElementById('res-prob-label').textContent=overflowProb>=70?'High overflow risk — collection urgent':overflowProb>=40?'Moderate risk — monitor closely':'Low overflow risk — safe for now';
+
+  document.getElementById('res-tto').textContent=tto;
+  document.getElementById('res-tto').style.color=fill>=80?'#dc2626':fill>=70?'#ea580c':'#16a34a';
+  document.getElementById('res-tto-sub').textContent=`Fill rate: ~${fillRate}%/hr (${area} area)`;
+
+  const cl=clusterLabels[clusterIdx];
+  document.getElementById('res-cluster').textContent=`C${clusterIdx}`;
+  document.getElementById('res-cluster').style.color=cl.color;
+  document.getElementById('res-cluster-sub').textContent=`${cl.lbl} · ${cl.rec}`;
+
+  const scoreCol=score>=70?'#dc2626':score>=50?'#ea580c':score>=30?'#d97706':'#16a34a';
+  document.getElementById('res-score').textContent=score+'/100';
+  document.getElementById('res-score').style.color=scoreCol;
+  document.getElementById('res-score-sub').textContent=`Rank-based collection priority`;
+
+  const ac=document.getElementById('action-card');
+  ac.style.borderColor=act.borderColor;
+  document.getElementById('action-icon').textContent=act.icon;
+  document.getElementById('action-icon').style.background=act.bg||'#f0fdf4';
+  document.getElementById('action-title').textContent=act.title;
+  document.getElementById('action-title').style.color=act.color;
+  document.getElementById('action-tag').textContent=act.tag;
+  document.getElementById('action-desc').textContent=act.desc;
+  document.getElementById('action-steps').innerHTML=act.steps.map((s,i)=>
+    `<div class="action-step"><div class="step-num">${i+1}</div><span>${s}</span></div>`).join('');
+}
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"03863b3265374345bbe61932c8def10d","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
